@@ -1,0 +1,68 @@
+<div class="container">
+  <div class="header">
+    <h2>Items</h2>
+    <button class="btn-primary" (click)="openCreate()">+ Nuevo</button>
+  </div>
+
+  <div class="alert alert-success" *ngIf="success">{{ success }}</div>
+  <div class="alert alert-error"   *ngIf="error">{{ error }}</div>
+
+  <div class="loading-bar" *ngIf="loading">Cargando...</div>
+
+  <!-- Formulario -->
+  <div class="form-card" *ngIf="showForm">
+    <h3>{{ editingId ? 'Editar' : 'Nuevo' }} Item</h3>
+    <div class="form-group">
+      <label>Nombre *</label>
+      <input [(ngModel)]="form.name" placeholder="Nombre del item" maxlength="100"/>
+    </div>
+    <div class="form-group">
+      <label>Descripción</label>
+      <textarea [(ngModel)]="form.description" placeholder="Descripción" rows="3" maxlength="500"></textarea>
+    </div>
+    <div class="form-group">
+      <label>Estado</label>
+      <select [(ngModel)]="form.status">
+        <option *ngFor="let s of statuses" [value]="s">{{ s }}</option>
+      </select>
+    </div>
+    <div class="form-actions">
+      <button class="btn-secondary" (click)="showForm = false">Cancelar</button>
+      <button class="btn-primary"   (click)="save()" [disabled]="!form.name.trim()">Guardar</button>
+    </div>
+  </div>
+
+  <!-- Tabla -->
+  <table *ngIf="!loading || items.length > 0">
+    <thead>
+      <tr>
+        <th>ID</th><th>Nombre</th><th>Descripción</th>
+        <th>Estado</th><th>Creado</th><th>Acciones</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr *ngFor="let item of items">
+        <td>{{ item.id }}</td>
+        <td>{{ item.name }}</td>
+        <td>{{ item.description || '—' }}</td>
+        <td><span class="badge" [class]="'badge-' + item.status.toLowerCase()">{{ item.status }}</span></td>
+        <td>{{ item.createdAt | date:'dd/MM/yyyy' }}</td>
+        <td class="actions">
+          <button class="btn-edit"   (click)="openEdit(item)">Editar</button>
+          <button class="btn-delete" (click)="delete(item.id)">Eliminar</button>
+        </td>
+      </tr>
+      <tr *ngIf="items.length === 0">
+        <td colspan="6" class="empty">No hay items. ¡Crea el primero!</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- Paginación -->
+  <div class="pagination">
+    <span>Total: {{ totalElements }}</span>
+    <button (click)="prevPage()" [disabled]="page === 0">← Anterior</button>
+    <span>Página {{ page + 1 }}</span>
+    <button (click)="nextPage()" [disabled]="(page + 1) * size >= totalElements">Siguiente →</button>
+  </div>
+</div>
