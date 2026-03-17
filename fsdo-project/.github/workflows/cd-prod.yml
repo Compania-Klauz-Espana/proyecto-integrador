@@ -1,0 +1,21 @@
+name: CD — Deploy PROD
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: 'Tag de imagen a desplegar (ej: sha-abc1234)'
+        required: true
+
+jobs:
+  deploy-prod:
+    name: Deploy → PROD
+    runs-on: ubuntu-latest
+    environment:
+      name: prod
+      url: https://tudominio.com
+    # Requiere 2 aprobadores configurados en GitHub → Settings → Environments → prod
+    steps:
+      - uses: actions/checkout@v4
+      # TODO Sprint 3 — agregar steps de deploy con Kustomize
+      - run: echo "Deploy a PROD — Tag ${{ inputs.image_tag }}"

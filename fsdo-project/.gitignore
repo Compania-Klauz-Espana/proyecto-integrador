@@ -1,0 +1,37 @@
+# Java / Maven
+backend/target/
+backend/*.jar
+backend/*.war
+
+# Node / Angular
+frontend/node_modules/
+frontend/dist/
+
+# Terraform
+infra/terraform/**/.terraform/
+infra/terraform/**/*.tfstate
+infra/terraform/**/*.tfstate.backup
+infra/terraform/**/.terraform.lock.hcl
+infra/terraform/**/terraform.tfvars
+*.tfvars
+!infra/terraform/environments/**/*.tfvars.example
+
+# Secrets y variables de entorno
+.env
+.env.*
+*.pem
+*.key
+*-credentials.json
+
+# IDEs
+.idea/
+.vscode/
+*.iml
+
+# Logs
+*.log
+logs/
+
+# OS
+.DS_Store
+Thumbs.db

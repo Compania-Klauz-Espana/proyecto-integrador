@@ -1,0 +1,8 @@
+environment        = "prod"
+project            = "fsdo"
+region             = "us-east-1"
+node_instance_type = "m5.large"
+node_desired       = 3
+node_min           = 3
+node_max           = 8
+db_instance_class  = "db.r6g.large"

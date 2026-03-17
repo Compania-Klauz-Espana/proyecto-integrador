@@ -1,0 +1,21 @@
+name: CD — Deploy QA
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: 'Tag de imagen a desplegar (ej: sha-abc1234)'
+        required: true
+
+jobs:
+  deploy-qa:
+    name: Deploy → QA
+    runs-on: ubuntu-latest
+    environment:
+      name: qa
+      url: https://qa.tudominio.com
+    # Requiere 1 aprobador configurado en GitHub → Settings → Environments → qa
+    steps:
+      - uses: actions/checkout@v4
+      # TODO Sprint 3 — agregar steps de deploy con Kustomize
+      - run: echo "Deploy a QA — Tag ${{ inputs.image_tag }}"
