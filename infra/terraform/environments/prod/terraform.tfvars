@@ -1,0 +1,14 @@
+subscription_id    = "82afe158-defc-4c91-9593-e4f9a60cb4f4"
+tenant_id          = "REEMPLAZAR_CON_TU_TENANT_ID"
+prefix             = "klauz"
+environment        = "prod"
+location           = "eastus"
+vnet_cidr          = "10.2.0.0/16"
+aks_subnet_cidr    = "10.2.1.0/24"
+db_subnet_cidr     = "10.2.2.0/24"
+kubernetes_version = "1.29"
+node_count         = 2
+node_vm_size       = "Standard_B2ms"
+acr_sku            = "Standard"
+db_sku             = "GP_Standard_D2s_v3"
+db_storage_mb      = 65536

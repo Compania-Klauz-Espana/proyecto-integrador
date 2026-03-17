@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: klauz-qa
+  labels:
+    environment: qa
+    project: klauz

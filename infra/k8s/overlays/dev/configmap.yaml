@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backend-config
+data:
+  APP_ENV: "dev"
+  SPRING_PROFILES_ACTIVE: "dev"
+  DB_URL: "jdbc:postgresql://klauz-dev-db.postgres.database.azure.com:5432/appdb"
+  DB_USER: "klauzadmin"
+  DB_POOL_SIZE: "5"

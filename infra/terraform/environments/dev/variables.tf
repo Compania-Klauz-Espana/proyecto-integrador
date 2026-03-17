@@ -1,0 +1,14 @@
+variable "subscription_id"   { type = string }
+variable "tenant_id"         { type = string }
+variable "prefix"            { type = string }
+variable "environment"       { type = string }
+variable "location"          { type = string }
+variable "vnet_cidr"         { type = string }
+variable "aks_subnet_cidr"   { type = string }
+variable "db_subnet_cidr"    { type = string }
+variable "kubernetes_version" { type = string }
+variable "node_count"        { type = number }
+variable "node_vm_size"      { type = string }
+variable "acr_sku"           { type = string }
+variable "db_sku"            { type = string }
+variable "db_storage_mb"     { type = number }

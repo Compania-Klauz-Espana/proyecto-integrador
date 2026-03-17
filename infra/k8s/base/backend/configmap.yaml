@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backend-config
+  namespace: klauz-app
+data:
+  APP_ENV: "dev"
+  SPRING_PROFILES_ACTIVE: "dev"
+  DB_URL: "jdbc:postgresql://PLACEHOLDER_DB_HOST:5432/appdb"
+  DB_USER: "klauzadmin"
+  DB_POOL_SIZE: "5"

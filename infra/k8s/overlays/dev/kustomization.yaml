@@ -1,0 +1,29 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: klauz-dev
+
+resources:
+  - ../../base
+  - namespace.yaml
+
+patches:
+  - path: backend-patch.yaml
+    target:
+      kind: Deployment
+      name: backend
+  - path: configmap.yaml
+    target:
+      kind: ConfigMap
+      name: backend-config
+
+images:
+  - name: klauzdevacr.azurecr.io/backend
+    newName: klauzdevacr.azurecr.io/backend
+    newTag: latest
+  - name: klauzdevacr.azurecr.io/frontend
+    newName: klauzdevacr.azurecr.io/frontend
+    newTag: latest
+
+commonLabels:
+  environment: dev
