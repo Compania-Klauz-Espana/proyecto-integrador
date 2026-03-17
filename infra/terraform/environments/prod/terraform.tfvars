@@ -1,5 +1,5 @@
 subscription_id    = "82afe158-defc-4c91-9593-e4f9a60cb4f4"
-tenant_id          = "REEMPLAZAR_CON_TU_TENANT_ID"
+tenant_id          = "d9f604f1-9d35-481a-9836-b63888a136f8"
 prefix             = "klauz"
 environment        = "prod"
 location           = "eastus"
