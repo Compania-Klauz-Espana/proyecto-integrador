@@ -1,0 +1,67 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: klauz-alerts
+  namespace: monitoring
+  labels:
+    app: kube-prometheus-stack
+    release: monitoring
+spec:
+  groups:
+    - name: klauz.pods
+      interval: 30s
+      rules:
+        - alert: PodCrashLooping
+          expr: |
+            rate(kube_pod_container_status_restarts_total[5m]) * 60 * 5 > 3
+          for: 2m
+          labels:
+            severity: critical
+            team: devops
+          annotations:
+            summary: "Pod {{ $labels.pod }} esta en CrashLoop"
+            description: "El pod {{ $labels.pod }} en namespace {{ $labels.namespace }} se ha reiniciado mas de 3 veces en los ultimos 5 minutos."
+            runbook_url: "https://github.com/Compania-Klauz-Espana/proyecto-integrador/blob/main/docs/runbooks/pod-crashloop.md"
+
+        - alert: PodNotReady
+          expr: |
+            kube_pod_status_ready{condition="true"} == 0
+          for: 2m
+          labels:
+            severity: warning
+            team: devops
+          annotations:
+            summary: "Pod {{ $labels.pod }} no esta listo"
+            description: "El pod {{ $labels.pod }} en namespace {{ $labels.namespace }} lleva mas de 2 minutos sin estar Ready."
+            runbook_url: "https://github.com/Compania-Klauz-Espana/proyecto-integrador/blob/main/docs/runbooks/pod-not-ready.md"
+
+    - name: klauz.resources
+      interval: 60s
+      rules:
+        - alert: HighCPUUsage
+          expr: |
+            sum(rate(container_cpu_usage_seconds_total{container!=""}[5m])) by (pod, namespace) * 100 > 80
+          for: 5m
+          labels:
+            severity: warning
+            team: devops
+          annotations:
+            summary: "CPU alta en pod {{ $labels.pod }}"
+            description: "El pod {{ $labels.pod }} en {{ $labels.namespace }} tiene CPU > 80% por mas de 5 minutos. Valor actual: {{ $value | printf \"%.1f\" }}%"
+            runbook_url: "https://github.com/Compania-Klauz-Espana/proyecto-integrador/blob/main/docs/runbooks/high-cpu.md"
+
+    - name: klauz.application
+      interval: 30s
+      rules:
+        - alert: HighErrorRate
+          expr: |
+            sum(rate(http_server_requests_seconds_count{status=~"5.."}[2m])) /
+            sum(rate(http_server_requests_seconds_count[2m])) * 100 > 5
+          for: 2m
+          labels:
+            severity: critical
+            team: devops
+          annotations:
+            summary: "Tasa de errores 5xx alta"
+            description: "La tasa de errores HTTP 5xx supera el 5% en los ultimos 2 minutos. Valor actual: {{ $value | printf \"%.1f\" }}%"
+            runbook_url: "https://github.com/Compania-Klauz-Espana/proyecto-integrador/blob/main/docs/runbooks/high-error-rate.md"
