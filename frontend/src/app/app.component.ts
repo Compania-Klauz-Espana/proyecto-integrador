@@ -2,6 +2,7 @@ import { Component } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import { LoadingService } from './core/services/loading.service';
+import { environment } from './environments/environment';
 
 @Component({
   selector: 'app-root',
@@ -33,6 +34,6 @@ import { LoadingService } from './core/services/loading.service';
   `]
 })
 export class AppComponent {
-  env = 'dev';
+  env = environment.production ? 'prod' : 'dev';
   constructor(public loading: LoadingService) {}
 }
