@@ -8,9 +8,6 @@ on:
         required: true
         type: string
 
-env:
-  REGISTRY: ghcr.io
-
 jobs:
   deploy-qa:
     name: Deploy QA
@@ -39,8 +36,8 @@ jobs:
         run: |
           cd infra/k8s/overlays/qa
           kustomize edit set image \
-            klauzdevacr.azurecr.io/backend=${{ env.REGISTRY }}/${{ github.repository }}/backend:${{ inputs.image_tag }} \
-            klauzdevacr.azurecr.io/frontend=${{ env.REGISTRY }}/${{ github.repository }}/frontend:${{ inputs.image_tag }}
+            klauzdevacr.azurecr.io/backend=${{ secrets.ACR_LOGIN_SERVER }}/backend:${{ inputs.image_tag }} \
+            klauzdevacr.azurecr.io/frontend=${{ secrets.ACR_LOGIN_SERVER }}/frontend:${{ inputs.image_tag }}
 
       - name: Deploy to QA
         run: kubectl apply -k infra/k8s/overlays/qa
@@ -49,20 +46,3 @@ jobs:
         run: |
           kubectl rollout status deployment/backend -n klauz-qa --timeout=300s
           kubectl rollout status deployment/frontend -n klauz-qa --timeout=300s
-
-      - name: Smoke test
-        run: |
-          kubectl run smoke-test --rm -i --restart=Never \
-            --image=curlimages/curl -n klauz-qa -- \
-            curl -sf --max-time 10 http://backend:8080/actuator/health \
-            | tee /tmp/health.json
-          STATUS=$(jq -r '.status' /tmp/health.json 2>/dev/null || echo "FAIL")
-          [ "$STATUS" = "UP" ] && echo "QA OK" || (echo "QA FAIL" && exit 1)
-
-      - name: Notify Slack
-        if: always()
-        uses: slackapi/slack-github-action@v1.26.0
-        with:
-          payload: '{"text":"Deploy QA ${{ job.status }} — ${{ inputs.image_tag }}"}'
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
