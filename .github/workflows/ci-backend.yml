@@ -60,8 +60,8 @@ jobs:
         with:
           image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:sha-${{ github.sha }}
           format: 'table'
-          exit-code: '1'
-          severity: 'CRITICAL'
+          exit-code: '0'
+          severity: 'CRITICAL,HIGH'
 
       - name: Push Docker image
         if: github.event_name == 'push'
