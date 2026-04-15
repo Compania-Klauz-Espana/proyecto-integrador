@@ -13,7 +13,7 @@ env:
 
 jobs:
   deploy-prod:
-    name: "\U0001F680 Deploy → PROD"
+    name: Deploy PROD
     runs-on: ubuntu-latest
     environment:
       name: prod
@@ -39,8 +39,8 @@ jobs:
         run: |
           cd infra/k8s/overlays/prod
           kustomize edit set image \
-            backend=${{ env.REGISTRY }}/${{ github.repository }}/backend:${{ inputs.image_tag }} \
-            frontend=${{ env.REGISTRY }}/${{ github.repository }}/frontend:${{ inputs.image_tag }}
+            klauzdevacr.azurecr.io/backend=${{ env.REGISTRY }}/${{ github.repository }}/backend:${{ inputs.image_tag }} \
+            klauzdevacr.azurecr.io/frontend=${{ env.REGISTRY }}/${{ github.repository }}/frontend:${{ inputs.image_tag }}
 
       - name: Deploy to PROD (Rolling Update)
         run: kubectl apply -k infra/k8s/overlays/prod
@@ -52,9 +52,11 @@ jobs:
 
       - name: Health check with retries
         run: |
-          BACKEND_URL=$(kubectl get svc backend -n klauz-prod -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
           for i in {1..5}; do
-            STATUS=$(curl -sf http://$BACKEND_URL:8080/actuator/health | jq -r '.status' 2>/dev/null || echo "FAIL")
+            STATUS=$(kubectl run smoke-$i --rm -i --restart=Never \
+              --image=curlimages/curl -n klauz-prod -- \
+              curl -sf --max-time 10 http://backend:8080/actuator/health \
+              | jq -r '.status' 2>/dev/null || echo "FAIL")
             echo "Intento $i — status: $STATUS"
             [ "$STATUS" = "UP" ] && echo "Health check OK" && exit 0
             sleep 10
@@ -73,6 +75,6 @@ jobs:
         if: always()
         uses: slackapi/slack-github-action@v1.26.0
         with:
-          payload: '{"text":"${{ job.status == ''success'' && ''Deploy PROD exitoso'' || ''Deploy PROD fallo'' }} — ${{ inputs.image_tag }} — ${{ job.status }}","channel":"#releases-prod"}'
+          payload: '{"text":"Deploy PROD ${{ job.status }} — ${{ inputs.image_tag }}","channel":"#releases-prod"}'
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_PROD }}

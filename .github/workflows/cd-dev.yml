@@ -11,7 +11,7 @@ env:
 
 jobs:
   deploy-dev:
-    name: "\U0001F680 Deploy → DEV"
+    name: Deploy DEV
     runs-on: ubuntu-latest
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
     environment:
@@ -38,8 +38,8 @@ jobs:
         run: |
           cd infra/k8s/overlays/dev
           kustomize edit set image \
-            backend=${{ env.REGISTRY }}/${{ github.repository }}/backend:sha-${{ github.sha }} \
-            frontend=${{ env.REGISTRY }}/${{ github.repository }}/frontend:sha-${{ github.sha }}
+            klauzdevacr.azurecr.io/backend=${{ env.REGISTRY }}/${{ github.repository }}/backend:sha-${{ github.sha }} \
+            klauzdevacr.azurecr.io/frontend=${{ env.REGISTRY }}/${{ github.repository }}/frontend:sha-${{ github.sha }}
 
       - name: Deploy to DEV
         run: kubectl apply -k infra/k8s/overlays/dev
@@ -51,9 +51,11 @@ jobs:
 
       - name: Smoke test
         run: |
-          sleep 10
-          BACKEND_URL=$(kubectl get svc backend -n klauz-dev -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
-          STATUS=$(curl -sf http://$BACKEND_URL:8080/actuator/health | jq -r '.status' 2>/dev/null || echo "FAIL")
+          kubectl run smoke-test --rm -i --restart=Never \
+            --image=curlimages/curl -n klauz-dev -- \
+            curl -sf --max-time 10 http://backend:8080/actuator/health \
+            | tee /tmp/health.json
+          STATUS=$(jq -r '.status' /tmp/health.json 2>/dev/null || echo "FAIL")
           echo "Health status: $STATUS"
           [ "$STATUS" = "UP" ] && echo "Smoke test passed" || (echo "Smoke test failed" && exit 1)
 

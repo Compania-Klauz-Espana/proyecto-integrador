@@ -21,6 +21,10 @@ patches:
     target:
       kind: ConfigMap
       name: backend-config
+  - path: ingress-patch.yaml
+    target:
+      kind: Ingress
+      name: klauz-ingress
 
 images:
   - name: klauzdevacr.azurecr.io/backend
