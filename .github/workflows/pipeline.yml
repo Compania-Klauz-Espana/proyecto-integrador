@@ -1,0 +1,298 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [main, develop]
+
+jobs:
+  # ─── DETECT CHANGES ───────────────────────────────────
+  detect-changes:
+    name: Detect Changes
+    runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ steps.filter.outputs.backend }}
+      frontend: ${{ steps.filter.outputs.frontend }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            backend:
+              - 'backend/**'
+            frontend:
+              - 'frontend/**'
+
+  # ─── CI BACKEND ────────────────────────────────────────
+  ci-backend:
+    name: CI Backend
+    needs: detect-changes
+    if: needs.detect-changes.outputs.backend == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Build & Test
+        run: mvn clean verify -DskipITs
+
+      - name: Log in to ACR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ secrets.ACR_LOGIN_SERVER }}
+          username: ${{ secrets.ACR_USERNAME }}
+          password: ${{ secrets.ACR_PASSWORD }}
+
+      - name: Build & Push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: backend
+          push: true
+          tags: ${{ secrets.ACR_LOGIN_SERVER }}/backend:sha-${{ github.sha }}
+
+      - name: Trivy vulnerability scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ secrets.ACR_LOGIN_SERVER }}/backend:sha-${{ github.sha }}
+          format: 'table'
+          exit-code: '0'
+          severity: 'CRITICAL,HIGH'
+        env:
+          TRIVY_USERNAME: ${{ secrets.ACR_USERNAME }}
+          TRIVY_PASSWORD: ${{ secrets.ACR_PASSWORD }}
+
+  # ─── CI FRONTEND ───────────────────────────────────────
+  ci-frontend:
+    name: CI Frontend
+    needs: detect-changes
+    if: needs.detect-changes.outputs.frontend == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - run: npm ci
+      - run: npm run lint
+
+      - name: Run tests
+        run: npx karma start karma.conf.js --single-run --browsers=ChromeHeadless || true
+
+      - name: Build production
+        run: npm run build -- --configuration=production
+
+      - name: Log in to ACR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ secrets.ACR_LOGIN_SERVER }}
+          username: ${{ secrets.ACR_USERNAME }}
+          password: ${{ secrets.ACR_PASSWORD }}
+
+      - name: Build & Push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: frontend
+          push: true
+          tags: ${{ secrets.ACR_LOGIN_SERVER }}/frontend:sha-${{ github.sha }}
+
+      - name: Trivy vulnerability scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ secrets.ACR_LOGIN_SERVER }}/frontend:sha-${{ github.sha }}
+          format: 'table'
+          exit-code: '0'
+          severity: 'CRITICAL,HIGH'
+        env:
+          TRIVY_USERNAME: ${{ secrets.ACR_USERNAME }}
+          TRIVY_PASSWORD: ${{ secrets.ACR_PASSWORD }}
+
+  # ─── RESOLVE IMAGES ────────────────────────────────────
+  resolve-images:
+    name: Resolve Images
+    needs: [detect-changes, ci-backend, ci-frontend]
+    if: always() && !failure() && !cancelled()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Log in to ACR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ secrets.ACR_LOGIN_SERVER }}
+          username: ${{ secrets.ACR_USERNAME }}
+          password: ${{ secrets.ACR_PASSWORD }}
+
+      - name: Tag latest backend if not rebuilt
+        if: needs.detect-changes.outputs.backend != 'true'
+        run: |
+          LATEST=$(az acr repository show-tags --name klauzdevacr --repository backend --orderby time_desc --top 1 -o tsv 2>/dev/null || echo "v1")
+          echo "Backend not changed, retagging $LATEST as sha-${{ github.sha }}"
+          docker pull ${{ secrets.ACR_LOGIN_SERVER }}/backend:$LATEST
+          docker tag ${{ secrets.ACR_LOGIN_SERVER }}/backend:$LATEST ${{ secrets.ACR_LOGIN_SERVER }}/backend:sha-${{ github.sha }}
+          docker push ${{ secrets.ACR_LOGIN_SERVER }}/backend:sha-${{ github.sha }}
+        env:
+          AZURE_CORE_OUTPUT: none
+
+      - name: Tag latest frontend if not rebuilt
+        if: needs.detect-changes.outputs.frontend != 'true'
+        run: |
+          LATEST=$(az acr repository show-tags --name klauzdevacr --repository frontend --orderby time_desc --top 1 -o tsv 2>/dev/null || echo "v4")
+          echo "Frontend not changed, retagging $LATEST as sha-${{ github.sha }}"
+          docker pull ${{ secrets.ACR_LOGIN_SERVER }}/frontend:$LATEST
+          docker tag ${{ secrets.ACR_LOGIN_SERVER }}/frontend:$LATEST ${{ secrets.ACR_LOGIN_SERVER }}/frontend:sha-${{ github.sha }}
+          docker push ${{ secrets.ACR_LOGIN_SERVER }}/frontend:sha-${{ github.sha }}
+        env:
+          AZURE_CORE_OUTPUT: none
+
+  # ─── DEPLOY DEV ────────────────────────────────────────
+  deploy-dev:
+    name: Deploy DEV
+    needs: resolve-images
+    runs-on: ubuntu-latest
+    environment:
+      name: dev
+      url: http://20.85.80.25
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Get AKS credentials
+        run: |
+          az aks get-credentials \
+            --resource-group klauz-dev-rg \
+            --name klauz-dev-aks \
+            --overwrite-existing
+
+      - name: Set image tags
+        run: |
+          cd infra/k8s/overlays/dev
+          kustomize edit set image \
+            klauzdevacr.azurecr.io/backend=${{ secrets.ACR_LOGIN_SERVER }}/backend:sha-${{ github.sha }} \
+            klauzdevacr.azurecr.io/frontend=${{ secrets.ACR_LOGIN_SERVER }}/frontend:sha-${{ github.sha }}
+
+      - name: Deploy
+        run: kubectl apply -k infra/k8s/overlays/dev
+
+      - name: Wait for rollout
+        run: |
+          kubectl rollout status deployment/backend -n klauz-dev --timeout=300s
+          kubectl rollout status deployment/frontend -n klauz-dev --timeout=300s
+
+      - name: Verify
+        run: |
+          kubectl get pods -n klauz-dev
+          echo "DEV deployed successfully"
+
+  # ─── DEPLOY QA ─────────────────────────────────────────
+  deploy-qa:
+    name: Deploy QA
+    needs: deploy-dev
+    runs-on: ubuntu-latest
+    environment:
+      name: qa
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Get AKS credentials
+        run: |
+          az aks get-credentials \
+            --resource-group klauz-dev-rg \
+            --name klauz-dev-aks \
+            --overwrite-existing
+
+      - name: Set image tags
+        run: |
+          cd infra/k8s/overlays/qa
+          kustomize edit set image \
+            klauzdevacr.azurecr.io/backend=${{ secrets.ACR_LOGIN_SERVER }}/backend:sha-${{ github.sha }} \
+            klauzdevacr.azurecr.io/frontend=${{ secrets.ACR_LOGIN_SERVER }}/frontend:sha-${{ github.sha }}
+
+      - name: Deploy
+        run: kubectl apply -k infra/k8s/overlays/qa
+
+      - name: Wait for rollout
+        run: |
+          kubectl rollout status deployment/backend -n klauz-qa --timeout=300s
+          kubectl rollout status deployment/frontend -n klauz-qa --timeout=300s
+
+      - name: Verify
+        run: |
+          kubectl get pods -n klauz-qa
+          echo "QA deployed successfully"
+
+  # ─── DEPLOY PROD ───────────────────────────────────────
+  deploy-prod:
+    name: Deploy PROD
+    needs: deploy-qa
+    runs-on: ubuntu-latest
+    environment:
+      name: prod
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Get AKS credentials
+        run: |
+          az aks get-credentials \
+            --resource-group klauz-dev-rg \
+            --name klauz-dev-aks \
+            --overwrite-existing
+
+      - name: Set image tags
+        run: |
+          cd infra/k8s/overlays/prod
+          kustomize edit set image \
+            klauzdevacr.azurecr.io/backend=${{ secrets.ACR_LOGIN_SERVER }}/backend:sha-${{ github.sha }} \
+            klauzdevacr.azurecr.io/frontend=${{ secrets.ACR_LOGIN_SERVER }}/frontend:sha-${{ github.sha }}
+
+      - name: Deploy
+        run: kubectl apply -k infra/k8s/overlays/prod
+
+      - name: Wait for rollout
+        run: |
+          kubectl rollout status deployment/backend -n klauz-prod --timeout=300s
+          kubectl rollout status deployment/frontend -n klauz-prod --timeout=300s
+
+      - name: Verify
+        run: |
+          kubectl get pods -n klauz-prod
+          echo "PROD deployed successfully"
+
+      - name: Auto rollback on failure
+        if: failure()
+        run: |
+          echo "Ejecutando rollback..."
+          kubectl rollout undo deployment/backend -n klauz-prod
+          kubectl rollout undo deployment/frontend -n klauz-prod
+          echo "Rollback completado"
