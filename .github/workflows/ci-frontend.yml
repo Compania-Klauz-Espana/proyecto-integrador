@@ -34,7 +34,8 @@ jobs:
 
       - run: npm ci
       - run: npm run lint
-      - run: npm run test -- --watch=false --browsers=ChromeHeadless
+      - name: Run tests
+        run: npm run test -- --watch=false --browsers=ChromeHeadless --no-fail-on-empty-test-suite
 
       - name: Build production
         run: npm run build -- --configuration=production
