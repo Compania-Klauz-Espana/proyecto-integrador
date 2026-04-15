@@ -14,7 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: qa
-      url: https://qa.proyecto-integrador.com
+      url: http://20.85.80.25
 
     steps:
       - name: Checkout
@@ -28,8 +28,8 @@ jobs:
       - name: Get AKS credentials
         run: |
           az aks get-credentials \
-            --resource-group klauz-qa-rg \
-            --name klauz-qa-aks \
+            --resource-group klauz-dev-rg \
+            --name klauz-dev-aks \
             --overwrite-existing
 
       - name: Set image tags with Kustomize
@@ -46,3 +46,11 @@ jobs:
         run: |
           kubectl rollout status deployment/backend -n klauz-qa --timeout=300s
           kubectl rollout status deployment/frontend -n klauz-qa --timeout=300s
+
+      - name: Verify deployment
+        run: |
+          echo "QA Backend pods:"
+          kubectl get pods -n klauz-qa -l app=backend
+          echo "QA Frontend pods:"
+          kubectl get pods -n klauz-qa -l app=frontend
+          echo "QA Deploy completed successfully"
