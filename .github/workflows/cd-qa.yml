@@ -1,20 +1,17 @@
 name: CD — Deploy QA
 
 on:
-  workflow_dispatch:
-    inputs:
-      image_tag:
-        description: 'Tag de imagen (ej: sha-abc1234)'
-        required: true
-        type: string
+  workflow_run:
+    workflows: ["CD — Deploy DEV"]
+    types: [completed]
 
 jobs:
   deploy-qa:
     name: Deploy QA
     runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     environment:
       name: qa
-      url: http://20.85.80.25
 
     steps:
       - name: Checkout
@@ -36,8 +33,8 @@ jobs:
         run: |
           cd infra/k8s/overlays/qa
           kustomize edit set image \
-            klauzdevacr.azurecr.io/backend=${{ secrets.ACR_LOGIN_SERVER }}/backend:${{ inputs.image_tag }} \
-            klauzdevacr.azurecr.io/frontend=${{ secrets.ACR_LOGIN_SERVER }}/frontend:${{ inputs.image_tag }}
+            klauzdevacr.azurecr.io/backend=${{ secrets.ACR_LOGIN_SERVER }}/backend:sha-${{ github.event.workflow_run.head_sha }} \
+            klauzdevacr.azurecr.io/frontend=${{ secrets.ACR_LOGIN_SERVER }}/frontend:sha-${{ github.event.workflow_run.head_sha }}
 
       - name: Deploy to QA
         run: kubectl apply -k infra/k8s/overlays/qa
