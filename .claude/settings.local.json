@@ -16,7 +16,12 @@
       "Bash(kubectl kustomize:*)",
       "Bash(git status:*)",
       "Bash(grep *)",
-      "Bash(az acr *)"
+      "Bash(az acr *)",
+      "Bash(kubectl scale *)",
+      "Bash(kubectl delete *)",
+      "Bash(kubectl get pods *)",
+      "Bash(kubectl get deployments *)",
+      "Bash(kubectl set *)"
     ]
   }
 }

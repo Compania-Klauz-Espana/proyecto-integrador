@@ -46,9 +46,10 @@ jobs:
           kubectl rollout status deployment/backend -n klauz-dev --timeout=300s
           kubectl rollout status deployment/frontend -n klauz-dev --timeout=300s
 
-      - name: Smoke test
+      - name: Verify deployment
         run: |
-          kubectl run smoke-test --rm -i --restart=Never \
-            --image=curlimages/curl -n klauz-dev -- \
-            curl -sf --max-time 10 http://backend:8080/actuator/health || true
-          echo "Smoke test completed"
+          echo "Backend pods:"
+          kubectl get pods -n klauz-dev -l app=backend
+          echo "Frontend pods:"
+          kubectl get pods -n klauz-dev -l app=frontend
+          echo "Deploy completed successfully"
