@@ -24,10 +24,10 @@ patches:
 images:
   - name: klauzdevacr.azurecr.io/backend
     newName: klauzdevacr.azurecr.io/backend
-    newTag: latest
+    newTag: v1
   - name: klauzdevacr.azurecr.io/frontend
     newName: klauzdevacr.azurecr.io/frontend
-    newTag: latest
+    newTag: v4
 
 commonLabels:
   environment: dev

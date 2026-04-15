@@ -3,9 +3,9 @@ kind: Ingress
 metadata:
   name: klauz-ingress
 spec:
+  ingressClassName: nginx
   rules:
-    - host: dev.proyecto-integrador.com
-      http:
+    - http:
         paths:
           - path: /api
             pathType: Prefix

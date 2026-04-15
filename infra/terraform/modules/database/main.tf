@@ -1,3 +1,5 @@
+data "azurerm_client_config" "current" {}
+
 resource "random_password" "postgres" {
   length           = 20
   special          = true
@@ -22,8 +24,11 @@ resource "azurerm_postgresql_flexible_server" "main" {
   backup_retention_days        = var.environment == "prod" ? 35 : 7
   geo_redundant_backup_enabled = false
 
-  high_availability {
-    mode = var.environment == "prod" ? "ZoneRedundant" : "Disabled"
+  dynamic "high_availability" {
+    for_each = var.environment == "prod" ? [1] : []
+    content {
+      mode = "ZoneRedundant"
+    }
   }
 
   maintenance_window {
@@ -33,6 +38,10 @@ resource "azurerm_postgresql_flexible_server" "main" {
   }
 
   tags = var.tags
+
+  lifecycle {
+    ignore_changes = [zone]
+  }
 }
 
 resource "azurerm_postgresql_flexible_server_database" "app" {
@@ -59,6 +68,15 @@ resource "azurerm_key_vault" "main" {
 
   purge_protection_enabled   = var.environment == "prod" ? true : false
   soft_delete_retention_days = 7
+
+  access_policy {
+    tenant_id = var.tenant_id
+    object_id = data.azurerm_client_config.current.object_id
+
+    secret_permissions = [
+      "Get", "List", "Set", "Delete", "Purge"
+    ]
+  }
 }
 
 resource "azurerm_key_vault_secret" "db_password" {

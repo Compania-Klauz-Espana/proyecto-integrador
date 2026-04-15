@@ -1,10 +1,5 @@
 terraform {
-  backend "azurerm" {
-    resource_group_name  = "klauz-tfstate-rg"
-    storage_account_name = "klauztfstate"
-    container_name       = "tfstate"
-    key                  = "dev/terraform.tfstate"
-  }
+  backend "local" {}
 }
 
 provider "azurerm" {
