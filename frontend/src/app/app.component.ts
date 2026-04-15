@@ -11,7 +11,7 @@ import { environment } from './environments/environment';
   template: `
     <div class="app-shell">
       <header class="topbar">
-        <span class="logo">FSDO Project</span>
+        <span class="logo">Klauz DevOps Project</span>
         <span class="env-badge">{{ env }}</span>
       </header>
       <div class="spinner-bar" *ngIf="loading.isLoading$ | async"></div>

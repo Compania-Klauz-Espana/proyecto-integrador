@@ -1,5 +1,5 @@
 package com.company.backend.item;
-
+// Klauz DevOps Project — REST API v1
 import com.company.backend.item.dto.CreateItemRequest;
 import com.company.backend.item.dto.ItemDTO;
 import com.company.backend.item.dto.UpdateItemRequest;
