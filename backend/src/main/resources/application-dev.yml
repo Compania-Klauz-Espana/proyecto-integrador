@@ -9,3 +9,4 @@ logging:
   level:
     com.company.backend: DEBUG
     org.hibernate.SQL: DEBUG
+
