@@ -24,10 +24,10 @@ patches:
 images:
   - name: klauzdevacr.azurecr.io/backend
     newName: klauzdevacr.azurecr.io/backend
-    newTag: latest
+    newTag: sha-d315f842999db191b430d9251b7d00d2e759909b
   - name: klauzdevacr.azurecr.io/frontend
     newName: klauzdevacr.azurecr.io/frontend
-    newTag: latest
+    newTag: sha-d315f842999db191b430d9251b7d00d2e759909b
 
 commonLabels:
   environment: qa
