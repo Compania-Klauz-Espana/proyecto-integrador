@@ -4,18 +4,75 @@ on:
   workflow_dispatch:
     inputs:
       image_tag:
-        description: 'Tag de imagen a desplegar (ej: sha-abc1234)'
+        description: 'Tag de imagen a desplegar en produccion'
         required: true
+        type: string
+
+env:
+  REGISTRY: ghcr.io
 
 jobs:
   deploy-prod:
-    name: Deploy → PROD
+    name: "\U0001F680 Deploy → PROD"
     runs-on: ubuntu-latest
     environment:
       name: prod
-      url: https://tudominio.com
-    # Requiere 2 aprobadores configurados en GitHub → Settings → Environments → prod
+      url: https://proyecto-integrador.com
+
     steps:
-      - uses: actions/checkout@v4
-      # TODO Sprint 3 — agregar steps de deploy con Kustomize
-      - run: echo "Deploy a PROD — Tag ${{ inputs.image_tag }}"
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Get AKS credentials
+        run: |
+          az aks get-credentials \
+            --resource-group klauz-prod-rg \
+            --name klauz-prod-aks \
+            --overwrite-existing
+
+      - name: Set image tags with Kustomize
+        run: |
+          cd infra/k8s/overlays/prod
+          kustomize edit set image \
+            backend=${{ env.REGISTRY }}/${{ github.repository }}/backend:${{ inputs.image_tag }} \
+            frontend=${{ env.REGISTRY }}/${{ github.repository }}/frontend:${{ inputs.image_tag }}
+
+      - name: Deploy to PROD (Rolling Update)
+        run: kubectl apply -k infra/k8s/overlays/prod
+
+      - name: Wait for rollout
+        run: |
+          kubectl rollout status deployment/backend  -n klauz-prod --timeout=600s
+          kubectl rollout status deployment/frontend -n klauz-prod --timeout=600s
+
+      - name: Health check with retries
+        run: |
+          BACKEND_URL=$(kubectl get svc backend -n klauz-prod -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+          for i in {1..5}; do
+            STATUS=$(curl -sf http://$BACKEND_URL:8080/actuator/health | jq -r '.status' 2>/dev/null || echo "FAIL")
+            echo "Intento $i — status: $STATUS"
+            [ "$STATUS" = "UP" ] && echo "Health check OK" && exit 0
+            sleep 10
+          done
+          echo "Health check fallo despues de 5 intentos" && exit 1
+
+      - name: Auto rollback on failure
+        if: failure()
+        run: |
+          echo "Ejecutando rollback automatico..."
+          kubectl rollout undo deployment/backend  -n klauz-prod
+          kubectl rollout undo deployment/frontend -n klauz-prod
+          echo "Rollback completado"
+
+      - name: Notify Slack PROD
+        if: always()
+        uses: slackapi/slack-github-action@v1.26.0
+        with:
+          payload: '{"text":"${{ job.status == ''success'' && ''Deploy PROD exitoso'' || ''Deploy PROD fallo'' }} — ${{ inputs.image_tag }} — ${{ job.status }}","channel":"#releases-prod"}'
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_PROD }}

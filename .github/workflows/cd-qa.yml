@@ -4,18 +4,63 @@ on:
   workflow_dispatch:
     inputs:
       image_tag:
-        description: 'Tag de imagen a desplegar (ej: sha-abc1234)'
+        description: 'Tag de imagen (ej: sha-abc1234)'
         required: true
+        type: string
+
+env:
+  REGISTRY: ghcr.io
 
 jobs:
   deploy-qa:
-    name: Deploy → QA
+    name: "\U0001F680 Deploy → QA"
     runs-on: ubuntu-latest
     environment:
       name: qa
-      url: https://qa.tudominio.com
-    # Requiere 1 aprobador configurado en GitHub → Settings → Environments → qa
+      url: https://qa.proyecto-integrador.com
+
     steps:
-      - uses: actions/checkout@v4
-      # TODO Sprint 3 — agregar steps de deploy con Kustomize
-      - run: echo "Deploy a QA — Tag ${{ inputs.image_tag }}"
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Get AKS credentials
+        run: |
+          az aks get-credentials \
+            --resource-group klauz-qa-rg \
+            --name klauz-qa-aks \
+            --overwrite-existing
+
+      - name: Set image tags with Kustomize
+        run: |
+          cd infra/k8s/overlays/qa
+          kustomize edit set image \
+            backend=${{ env.REGISTRY }}/${{ github.repository }}/backend:${{ inputs.image_tag }} \
+            frontend=${{ env.REGISTRY }}/${{ github.repository }}/frontend:${{ inputs.image_tag }}
+
+      - name: Deploy to QA
+        run: kubectl apply -k infra/k8s/overlays/qa
+
+      - name: Wait for rollout
+        run: |
+          kubectl rollout status deployment/backend -n klauz-qa --timeout=300s
+          kubectl rollout status deployment/frontend -n klauz-qa --timeout=300s
+
+      - name: Smoke test
+        run: |
+          sleep 10
+          BACKEND_URL=$(kubectl get svc backend -n klauz-qa -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+          STATUS=$(curl -sf http://$BACKEND_URL:8080/actuator/health | jq -r '.status' 2>/dev/null || echo "FAIL")
+          [ "$STATUS" = "UP" ] && echo "QA OK" || (echo "QA FAIL" && exit 1)
+
+      - name: Notify Slack
+        if: always()
+        uses: slackapi/slack-github-action@v1.26.0
+        with:
+          payload: '{"text":"${{ job.status == ''success'' && ''Deploy QA exitoso'' || ''Deploy QA fallo'' }} — ${{ inputs.image_tag }}"}'
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}

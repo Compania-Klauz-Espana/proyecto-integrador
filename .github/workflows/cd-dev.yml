@@ -4,17 +4,71 @@ on:
   workflow_run:
     workflows: ["CI — Backend", "CI — Frontend"]
     types: [completed]
-    branches: [develop]
+    branches: [develop, main]
+
+env:
+  REGISTRY: ghcr.io
 
 jobs:
   deploy-dev:
-    name: Deploy → DEV
+    name: "\U0001F680 Deploy → DEV"
     runs-on: ubuntu-latest
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
     environment:
       name: dev
-      url: https://dev.tudominio.com
+      url: https://dev.proyecto-integrador.com
+
     steps:
-      - uses: actions/checkout@v4
-      # TODO Sprint 3 — agregar steps de deploy con Kustomize
-      - run: echo "Deploy a DEV — SHA ${{ github.sha }}"
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Get AKS credentials
+        run: |
+          az aks get-credentials \
+            --resource-group klauz-dev-rg \
+            --name klauz-dev-aks \
+            --overwrite-existing
+
+      - name: Set image tags with Kustomize
+        run: |
+          cd infra/k8s/overlays/dev
+          kustomize edit set image \
+            backend=${{ env.REGISTRY }}/${{ github.repository }}/backend:sha-${{ github.sha }} \
+            frontend=${{ env.REGISTRY }}/${{ github.repository }}/frontend:sha-${{ github.sha }}
+
+      - name: Deploy to DEV
+        run: kubectl apply -k infra/k8s/overlays/dev
+
+      - name: Wait for rollout
+        run: |
+          kubectl rollout status deployment/backend -n klauz-dev --timeout=300s
+          kubectl rollout status deployment/frontend -n klauz-dev --timeout=300s
+
+      - name: Smoke test
+        run: |
+          sleep 10
+          BACKEND_URL=$(kubectl get svc backend -n klauz-dev -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+          STATUS=$(curl -sf http://$BACKEND_URL:8080/actuator/health | jq -r '.status' 2>/dev/null || echo "FAIL")
+          echo "Health status: $STATUS"
+          [ "$STATUS" = "UP" ] && echo "Smoke test passed" || (echo "Smoke test failed" && exit 1)
+
+      - name: Notify Slack — Success
+        if: success()
+        uses: slackapi/slack-github-action@v1.26.0
+        with:
+          payload: '{"text":"Deploy DEV exitoso — sha-${{ github.sha }}"}'
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+      - name: Notify Slack — Failure
+        if: failure()
+        uses: slackapi/slack-github-action@v1.26.0
+        with:
+          payload: '{"text":"Deploy DEV fallo — sha-${{ github.sha }}"}'
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
