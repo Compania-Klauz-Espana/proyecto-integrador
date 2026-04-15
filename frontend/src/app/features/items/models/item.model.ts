@@ -1,4 +1,4 @@
-export type ItemStatus = 'ACTIVE' | 'INACTIVE' | 'PENDING';
+export type ItemStatus = 'ACTIVE' | 'INACTIVE' | 'ARCHIVED';
 
 export interface Item {
   id: number;

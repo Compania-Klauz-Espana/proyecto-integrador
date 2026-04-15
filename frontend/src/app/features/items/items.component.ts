@@ -1,6 +1,7 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { Subject, takeUntil } from 'rxjs';
 import { ItemsService } from './items.service';
 import { Item, ItemStatus, CreateItemRequest } from './models/item.model';
 
@@ -11,7 +12,7 @@ import { Item, ItemStatus, CreateItemRequest } from './models/item.model';
   templateUrl: './items.component.html',
   styleUrl: './items.component.scss'
 })
-export class ItemsComponent implements OnInit {
+export class ItemsComponent implements OnInit, OnDestroy {
   items: Item[] = [];
   totalElements = 0;
   page = 0;
@@ -22,17 +23,24 @@ export class ItemsComponent implements OnInit {
 
   showForm = false;
   editingId: number | null = null;
-  form: CreateItemRequest = { name: '', description: '', status: 'PENDING' };
-  statuses: ItemStatus[] = ['ACTIVE', 'INACTIVE', 'PENDING'];
+  form: CreateItemRequest = { name: '', description: '', status: 'ACTIVE' };
+  statuses: ItemStatus[] = ['ACTIVE', 'INACTIVE', 'ARCHIVED'];
+
+  private destroy$ = new Subject<void>();
 
   constructor(private svc: ItemsService) {}
 
   ngOnInit() { this.load(); }
 
+  ngOnDestroy() {
+    this.destroy$.next();
+    this.destroy$.complete();
+  }
+
   load() {
     this.loading = true;
     this.error = '';
-    this.svc.findAll(this.page, this.size).subscribe({
+    this.svc.findAll(this.page, this.size).pipe(takeUntil(this.destroy$)).subscribe({
       next: res => {
         this.items = res.content;
         this.totalElements = res.totalElements;
@@ -47,7 +55,7 @@ export class ItemsComponent implements OnInit {
 
   openCreate() {
     this.editingId = null;
-    this.form = { name: '', description: '', status: 'PENDING' };
+    this.form = { name: '', description: '', status: 'ACTIVE' };
     this.showForm = true;
   }
 
@@ -64,7 +72,7 @@ export class ItemsComponent implements OnInit {
       ? this.svc.update(this.editingId, { ...this.form, status: this.form.status! })
       : this.svc.create(this.form);
 
-    obs.subscribe({
+    obs.pipe(takeUntil(this.destroy$)).subscribe({
       next: () => {
         this.success = this.editingId ? 'Item actualizado' : 'Item creado';
         this.showForm = false;
@@ -77,9 +85,14 @@ export class ItemsComponent implements OnInit {
 
   delete(id: number) {
     if (!confirm('¿Eliminar este item?')) return;
-    this.svc.delete(id).subscribe({
-      next: () => { this.success = 'Item eliminado'; this.load(); setTimeout(() => this.success = '', 3000); },
-      error: err => this.error = err.message
+    this.loading = true;
+    this.svc.delete(id).pipe(takeUntil(this.destroy$)).subscribe({
+      next: () => {
+        this.success = 'Item eliminado';
+        this.load();
+        setTimeout(() => this.success = '', 3000);
+      },
+      error: err => { this.error = err.message; this.loading = false; }
     });
   }
 

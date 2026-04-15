@@ -2,6 +2,8 @@ package com.company.backend.item;
 
 import com.company.backend.item.dto.CreateItemRequest;
 import com.company.backend.shared.BaseIntegrationTest;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.web.client.TestRestTemplate;
@@ -17,33 +19,39 @@ class ItemIntegrationTest extends BaseIntegrationTest {
     @Autowired
     private TestRestTemplate restTemplate;
 
+    private final ObjectMapper mapper = new ObjectMapper();
+
     @Test
-    void crudFlow() {
+    void crudFlow() throws Exception {
         // CREATE
         CreateItemRequest createReq = new CreateItemRequest("Integration Item", "Test desc", ItemStatus.ACTIVE);
         ResponseEntity<String> createResp = restTemplate.postForEntity("/api/items", createReq, String.class);
         assertEquals(HttpStatus.CREATED, createResp.getStatusCode());
         assertTrue(createResp.getBody().contains("Integration Item"));
 
-        // READ ALL (includes migration sample data + created item)
+        // Extract ID from create response
+        JsonNode createBody = mapper.readTree(createResp.getBody());
+        long createdId = createBody.get("id").asLong();
+
+        // READ ALL
         ResponseEntity<String> listResp = restTemplate.getForEntity("/api/items", String.class);
         assertEquals(HttpStatus.OK, listResp.getStatusCode());
         assertTrue(listResp.getBody().contains("Integration Item"));
 
         // READ by ID
-        ResponseEntity<String> getResp = restTemplate.getForEntity("/api/items/9", String.class);
+        ResponseEntity<String> getResp = restTemplate.getForEntity("/api/items/" + createdId, String.class);
         assertEquals(HttpStatus.OK, getResp.getStatusCode());
 
         // UPDATE
         String updateJson = "{\"name\":\"Updated Item\",\"status\":\"INACTIVE\"}";
         HttpEntity<String> updateEntity = new HttpEntity<>(updateJson, jsonHeaders());
-        ResponseEntity<String> updateResp = restTemplate.exchange("/api/items/9", HttpMethod.PUT, updateEntity, String.class);
+        ResponseEntity<String> updateResp = restTemplate.exchange("/api/items/" + createdId, HttpMethod.PUT, updateEntity, String.class);
         assertEquals(HttpStatus.OK, updateResp.getStatusCode());
         assertTrue(updateResp.getBody().contains("Updated Item"));
 
         // DELETE
-        restTemplate.delete("/api/items/9");
-        ResponseEntity<String> afterDelete = restTemplate.getForEntity("/api/items/9", String.class);
+        restTemplate.delete("/api/items/" + createdId);
+        ResponseEntity<String> afterDelete = restTemplate.getForEntity("/api/items/" + createdId, String.class);
         assertEquals(HttpStatus.NOT_FOUND, afterDelete.getStatusCode());
     }
 
