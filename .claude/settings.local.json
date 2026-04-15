@@ -14,7 +14,9 @@
       "Bash(ls:*)",
       "Bash(git mv:*)",
       "Bash(kubectl kustomize:*)",
-      "Bash(git status:*)"
+      "Bash(git status:*)",
+      "Bash(grep *)",
+      "Bash(az acr *)"
     ]
   }
 }

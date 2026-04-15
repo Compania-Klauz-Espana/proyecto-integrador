@@ -11,9 +11,6 @@ on:
     paths:
       - 'frontend/**'
 
-env:
-  REGISTRY: ghcr.io
-
 jobs:
   ci:
     name: Lint · Test · Build · Push
@@ -23,9 +20,6 @@ jobs:
         working-directory: frontend
     steps:
       - uses: actions/checkout@v4
-
-      - name: Set image name lowercase
-        run: echo "IMAGE_NAME=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')/frontend" >> $GITHUB_ENV
 
       - name: Set up Node 20
         uses: actions/setup-node@v4
@@ -38,41 +32,35 @@ jobs:
       - run: npm run lint
 
       - name: Run tests
-        run: npx karma start karma.conf.js --single-run --browsers=ChromeHeadless --no-fail-on-empty-test-suite || true
+        run: npx karma start karma.conf.js --single-run --browsers=ChromeHeadless || true
 
       - name: Build production
         run: npm run build -- --configuration=production
 
-      - name: Log in to GHCR
+      - name: Log in to ACR
         if: github.event_name == 'push'
         uses: docker/login-action@v3
         with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          registry: ${{ secrets.ACR_LOGIN_SERVER }}
+          username: ${{ secrets.ACR_USERNAME }}
+          password: ${{ secrets.ACR_PASSWORD }}
 
-      - name: Build Docker image
-        if: github.event_name == 'push'
-        uses: docker/build-push-action@v5
-        with:
-          context: frontend
-          push: false
-          load: true
-          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:sha-${{ github.sha }}
-
-      - name: Trivy vulnerability scan
-        if: github.event_name == 'push'
-        uses: aquasecurity/trivy-action@master
-        with:
-          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:sha-${{ github.sha }}
-          format: 'table'
-          exit-code: '0'
-          severity: 'CRITICAL,HIGH'
-
-      - name: Push Docker image
+      - name: Build & Push Docker image
         if: github.event_name == 'push'
         uses: docker/build-push-action@v5
         with:
           context: frontend
           push: true
-          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:sha-${{ github.sha }}
+          tags: ${{ secrets.ACR_LOGIN_SERVER }}/frontend:sha-${{ github.sha }}
+
+      - name: Trivy vulnerability scan
+        if: github.event_name == 'push'
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ secrets.ACR_LOGIN_SERVER }}/frontend:sha-${{ github.sha }}
+          format: 'table'
+          exit-code: '0'
+          severity: 'CRITICAL,HIGH'
+        env:
+          TRIVY_USERNAME: ${{ secrets.ACR_USERNAME }}
+          TRIVY_PASSWORD: ${{ secrets.ACR_PASSWORD }}
