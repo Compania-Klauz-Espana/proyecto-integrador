@@ -1,11 +1,11 @@
 CREATE TABLE items (
-    id          BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT 'Unique identifier',
-    name        VARCHAR(255) NOT NULL COMMENT 'Item name',
-    description TEXT COMMENT 'Item description',
-    status      VARCHAR(20) NOT NULL COMMENT 'Item status: ACTIVE, INACTIVE, ARCHIVED',
-    created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'Creation timestamp',
-    updated_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT 'Last update timestamp'
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    id          BIGSERIAL PRIMARY KEY,
+    name        VARCHAR(255) NOT NULL,
+    description TEXT,
+    status      VARCHAR(20) NOT NULL,
+    created_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
 
 CREATE INDEX idx_items_status ON items (status);
 CREATE INDEX idx_items_name ON items (name);
